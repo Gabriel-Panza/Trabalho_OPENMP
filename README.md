@@ -1,6 +1,6 @@
 # Trabalho_OPENMP
 ## Codigo da Bubble Sort
-Para compilar o código com suporte a OPENMP:
+Para compilar e executar o código com suporte a OPENMP:
 ```bash
 gcc -fopenmp BubbleSort.c -o BubbleSort
 ```
@@ -10,7 +10,7 @@ gcc -fopenmp BubbleSort.c -o BubbleSort
 ```
 
 ## Código da Bitonic Sort
-Para compilar o código com suporte a OPENMP:
+Para compilar e executar o código com suporte a OPENMP:
 ```bash
 gcc -fopenmp BitonicSort.c -o BitonicSort
 ```
