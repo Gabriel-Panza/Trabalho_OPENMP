@@ -5,7 +5,7 @@
 #include <limits.h>
 
 #define tam 500000
-#define num_threads 4
+#define num_threads 1
 
 #define ASCENDING 1
 #define DESCENDING 0
@@ -78,11 +78,13 @@ int main(int argc, char *argv[]) {
 
     generate_random_array(arr, tam);
 
+    printa_lista(arr, tam);
+
     double start_time = omp_get_wtime();
-    printa_lista(arr, tam);
     bitonic_sort(arr, tam);
-    printa_lista(arr, tam);
     double end_time = omp_get_wtime();
+
+    printa_lista(arr, tam);
 
     printf("Número de threads: %d\n", num_threads);
     printf("Tempo de execução do Bitonic Sort: %.6f segundos\n", end_time - start_time);
