@@ -1,93 +1,144 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <omp.h>
+#include <math.h>
+#include <time.h>
 #include <limits.h>
 
-#define tam 500000
-#define num_threads 1
+#include <stdio.h>
+#include <stdlib.h>
+#include <omp.h>
 
-#define ASCENDING 1
-#define DESCENDING 0
+#define THRESHOLD 4096
 
-void compare_and_swap(int *arr, int i, int j, int direction) {
-    if ((direction == ASCENDING && arr[i] > arr[j]) ||
-        (direction == DESCENDING && arr[i] < arr[j])) {
-        int temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
-    }
+void swap(int *a, int *b) {
+    int temp = *a;
+    *a = *b;
+    *b = temp;
 }
 
-void bitonic_sort(int *arr, int n) {
-    int i, j, k;
-    int power_of_2 = 1;
-    while (power_of_2 < n) power_of_2 *= 2;
-
-    int *extended_arr = (int *)malloc(power_of_2 * sizeof(int));
-    for (i = 0; i < n; i++) {
-        extended_arr[i] = arr[i];
-    }
-    for (i = n; i < power_of_2; i++) {
-        extended_arr[i] = INT_MAX; // Preenche com valores máximos
-    }
-
-    for (k = 2; k <= power_of_2; k *= 2) {
-        for (j = k / 2; j > 0; j /= 2) {
-            #pragma omp parallel for
-            for (i = 0; i < power_of_2; i++) {
-                int l = i ^ j;
-                if (l > i) {
-                    int direction = ((i / k) % 2 == 0) ? ASCENDING : DESCENDING;
-                    compare_and_swap(extended_arr, i, l, direction);
-                }
-            }
+void bitonic_compare(int *arr, int low, int count, int dir) {
+    int k = count / 2;
+    for (int i = low; i < low + k; i++) {
+        if ((dir == 1 && arr[i] > arr[i + k]) || (dir == 0 && arr[i] < arr[i + k])) {
+            swap(&arr[i], &arr[i + k]);
         }
     }
-
-    for (i = 0; i < n; i++) {
-        arr[i] = extended_arr[i];
-    }
-    free(extended_arr);
 }
 
-void generate_random_array(int *arr, int n) {
-    srand(time(NULL));
+void bitonic_merge(int *arr, int low, int count, int dir) {
+    if (count > 1) {
+        int k = count / 2;
+
+        bitonic_compare(arr, low, count, dir);
+
+        if (count > THRESHOLD) {
+            #pragma omp task
+            bitonic_merge(arr, low, k, dir);
+
+            #pragma omp task
+            bitonic_merge(arr, low + k, k, dir);
+
+            #pragma omp taskwait
+        } else {
+            bitonic_merge(arr, low, k, dir);
+            bitonic_merge(arr, low + k, k, dir);
+        }
+    }
+}
+
+
+void bitonic_sort_rec(int *arr, int low, int count, int dir) {
+    if (count > 1) {
+        int k = count / 2;
+
+        if (count > THRESHOLD) {
+            #pragma omp task shared(arr)
+            bitonic_sort_rec(arr, low, k, 1);
+
+            #pragma omp task shared(arr)
+            bitonic_sort_rec(arr, low + k, k, 0);
+
+            #pragma omp taskwait
+        } else {
+            bitonic_sort_rec(arr, low, k, 1);
+            bitonic_sort_rec(arr, low + k, k, 0);
+        }
+
+        bitonic_merge(arr, low, count, dir);
+    }
+}
+
+void bitonic_sort(int *arr, int n, int num_threads) {
+    omp_set_num_threads(num_threads);
+
+    double start_time = omp_get_wtime();
+
+    #pragma omp parallel
+    {
+        #pragma omp single
+        bitonic_sort_rec(arr, 0, n, 1);
+    }
+
+    double end_time = omp_get_wtime();
+
+    printf("Tempo gasto na função bitonic_sort: %.6f segundos\n", end_time - start_time);
+}
+
+
+
+void print_array(int *arr, int n) {
     for (int i = 0; i < n; i++) {
-        arr[i] = rand() % 500000;
-    }
-}
-
-void printa_lista(int *lista, int tamanho_lista) {
-
-    printf("Os elementos da lista são:\n\n");
-    for (int i = 0; i < tamanho_lista; i++) {
-        printf("%d ", lista[i]);
+        printf("%d ", arr[i]);
     }
     printf("\n");
 }
 
-int main(int argc, char *argv[]) {
-    omp_set_num_threads(num_threads);
+void generate_array(int *arr, int n) {
+    for (int i = 0; i < n; i++) {
+        arr[i] = rand() % 10000000;
+    }
+}
 
-    int *arr = (int *)malloc(tam * sizeof(int));
+int next_power_of_2(int n) {
+    int power = 1;
+    while (power < n) {
+        power *= 2;
+    }
+    return power;
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 3) {
+        printf("Uso: %s <número de threads> <tamanho do array>\n", argv[0]);
+        return 1;
+    }
+
+    int num_threads = atoi(argv[1]);
+    int n = atoi(argv[2]);
+
+    int next_power = next_power_of_2(n);
+    int *arr = malloc(next_power * sizeof(int));
     if (arr == NULL) {
         printf("Erro ao alocar memória.\n");
         return 1;
     }
 
-    generate_random_array(arr, tam);
+    srand(time(NULL));
+    generate_array(arr, n);
 
-    printa_lista(arr, tam);
+    for (int i = n; i < next_power; i++) {
+        arr[i] = INT_MAX;
+    }
 
-    double start_time = omp_get_wtime();
-    bitonic_sort(arr, tam);
-    double end_time = omp_get_wtime();
+    //printf("Array original:\n");
+    //print_array(arr, n);
 
-    printa_lista(arr, tam);
+    // Ordena o array usando Bitonic Sort
+    bitonic_sort(arr, next_power, num_threads);
 
-    printf("Número de threads: %d\n", num_threads);
-    printf("Tempo de execução do Bitonic Sort: %.6f segundos\n", end_time - start_time);
+    //printf("Array ordenado:\n");
+    //print_array(arr, n); // Imprime apenas os valores originais
 
     free(arr);
     return 0;

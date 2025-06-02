@@ -33,11 +33,9 @@ int* bubblesort_paralelo(int *lista, int n) {
     for (int i = 0; i < n; i++) {
         lista_ordenada[i] = lista[i];
     }
-    
-
     //enquanto alguma troca ainda for feita ele continua
-    //se apenas a 1 interacao ocorrer, entao a lista ja estava ordenada
-    //O reduction com OR eh necessario para garantir que se alguma THREAD mudar para 1, o final sera 1
+    //se troca for 0 no final da iteração, entao a lista ja estava ordenada
+    //O reduction com OR eh necessario para garantir que se alguma THREAD mudar o troca para 1, o final sera 1
     do{
         troca = 0;
 
@@ -54,7 +52,6 @@ int* bubblesort_paralelo(int *lista, int n) {
                 troca = 1;
             }
         }
-
         //percorre os indices impares
         #pragma omp parallel for reduction(|:troca)
         for (int i = 1; i < n - 1; i += 2) {
